@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "stdint.h": "c",
+        "cstddef": "c",
+        "*.tcc": "cpp",
+        "sstream": "c",
+        "stddef.h": "c",
+        "stdio.h": "c"
+    }
+}
