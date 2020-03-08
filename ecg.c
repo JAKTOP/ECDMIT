@@ -53,79 +53,84 @@ int16_t QN0 = 0, QN1 = 0;
 int Reg0 = 0;
 #define THREAD_NUMBER 2
 FILE *fp = NULL;
-
+FILE *fpf = NULL;
 static int ii = 1;
 
 int main(void)
 {
 
-    PICQRSDet(0, 1);
+  	int16_t c;
+	int16_t x;
 
-    char c;
-    int16_t x;
-    char filename[] = "F:\\MATLAB\\TEMP-MIT-BIH\\100_200.txt"; //每行最大读取的字符数
-    if ((fp = fopen(filename, "r")) == NULL)                   //判断文件是否存在及可读
-    {
-        printf("error!");
-        return -1;
-    }
-    char StrLine[16];
-    int16_t lTemp = 0, delay = 0;
-    int16_t index = 0;
+	FILE *fp = NULL;
+	char filename[] = "F:\\MATLAB\\TEMP-MIT-BIH\\100_200.txt"; //每行最大读取的字符数
+	if ((fp = fopen(filename, "r")) == NULL)				   //判断文件是否存在及可读
+	{
+		printf("error!");
+		return -1;
+	}
+	char StrLine[16];
+	int16_t lTemp = 0, delay = 0;
+	int16_t index = 0;
+	int _RRCount = 0;
+	int SampleCount = 0;
+	int mSampleCount = 0;
+	long DetectionTime;
 
-    int16_t SampleCount = 0;
-    int16_t mSampleCount = 0;
-    long DetectionTime;
+	char atrName[20];
+	sprintf(atrName, "%d_t.txt", "T100");
 
-    char atrName[20];
-    sprintf(atrName, "%d_t.txt", "T100");
+	fpf= fopen("F:\\MATLAB\\TEMP-MIT-BIH\\100_F.txt", "a");
+	
 
-    FILE *tAtrFile = fopen(atrName, "a");
-    fprintf(tAtrFile, "%s\t%s\t%s\n", "Position", "Time", "Type");
+	FILE *tAtrFile = fopen(atrName, "a");
+	fprintf(tAtrFile, "%s\t%s\t\t%s\t\t%s\n", "Position", "Time", "RR","BPM");
+	PICQRSDet(x, 1);
+	while (!feof(fp))
+	{
 
-    while (!feof(fp))
-    {
-        ++SampleCount;
+		int16_t c;
 
-        int16_t c;
-        if (index % 10 == 0)
-        {
-            c = 0x55;
-        }
-        else
-        {
-            fgets(StrLine, 1024, fp); //读取一行
-            c = atoi(StrLine);
-        }
+		fgets(StrLine, 1024, fp); //读取一行
+		c = atoi(StrLine);
 
-        if (SyncRx(c, &x) != 0)
-        {
+		if (SampleCount == 1629)
+		{
+			int ii = 11;
+		}
 
-            delay = PICQRSDet(x, 0);
+		++SampleCount;
 
-            if (delay != 0)
-            {
+			// lTemp = c - 1024;
+			// lTemp *= 200;
+			// lTemp /= 200;
+			// c = lTemp;
 
-                DetectionTime = SampleCount - delay;
+		delay = PICQRSDet(c, 0);
 
-                // Convert sample count to input file sample
-                // rate.
+		if (delay != 0)
+		{
 
-                DetectionTime *= 200;
-                DetectionTime /= 200;
+			printf("V1:%d", _RRCount++);
+			DetectionTime = SampleCount - delay;
 
-                double rr = (SampleCount - mSampleCount) / 200.0;
-                mSampleCount = SampleCount;
+			// Convert sample count to input file sample
+			// rate.
 
-                fprintf(tAtrFile, "%ld\t%d\t%.3f\n", SampleCount, DetectionTime, rr);
-            }
-        }
-        index++;
-    }
-    fclose(tAtrFile);
-    fclose(fp); //关闭文件
-    system("pause");
-    return 0;
+			DetectionTime *= 200;
+			DetectionTime /= 200;
+
+			double rr = (SampleCount - mSampleCount) / 200.0;
+              double bpm=200*60/(SampleCount - mSampleCount);
+			mSampleCount = SampleCount;
+          
+			fprintf(tAtrFile, "%ld\t\t%d\t\t%.3f\t\t%.3f\n", SampleCount, DetectionTime, rr,bpm);
+		}
+	}
+	fclose(fpf);
+	fclose(tAtrFile);
+	fclose(fp); //关闭文件
+	system("pause");
 }
 
 // int NextSample(int *vout, int nosig, int ifreq,
@@ -309,6 +314,7 @@ int16_t PICQRSDet(int16_t x, int init)
     if (x < 0)
         x = -x;
     x = mvwint(x, 0);
+    	fprintf(fpf, "%d\n",x);
     x = Peak(x, 0);
 
     // Hold any peak that is detected for 200 ms

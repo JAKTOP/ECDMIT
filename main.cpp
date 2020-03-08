@@ -6,12 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 #define SMP_FREQ_250 250
 using namespace std;
 
-int *buildECD(char *ecddata, int length);
+void buildECD(char *ecddata, int length);
 
 int *v1 = NULL, *v2 = NULL, *v3 = NULL;
 
@@ -22,7 +20,7 @@ int *v1 = NULL, *v2 = NULL, *v3 = NULL;
 int main(int argc, char **argv)
 {
 
-    string inFilePath = "D:\\ECG_DAT\\265-11-HC+190500HK000008_20200225080925.ECD";
+    string inFilePath = "F:\\ECG_DAT\\265-11-HC+190500HK000008_20200225080925.ECD";
 
     ifstream infile;
     infile.open(inFilePath, ios::binary | ios::in);
@@ -41,68 +39,54 @@ int main(int argc, char **argv)
 
     infile.read(buffer, length);
     infile.close();
-       
-    int *val = buildECD(buffer, length);
+    v1 = new int[length];
+    v2 = new int[length];
+    buildECD(buffer, length);
     int slength = 75000;
-    int n = 0;
-    FILE *fp=NULL;
-    char _sfname[100]="",sfname[]="D:\\ECG_DAT\\";
-    strcpy(_sfname,sfname);
-    sprintf(_sfname,"%secg-%d.txt",_sfname,n++);       
-    fp = fopen(_sfname,"wb+");//打开文件
-   
-    for(int i=0,j=1;i<length;i++,j++){
-        // if(i%slength==0){
-        //     char sfname[]="";
-        //     sprintf(sfname,"F:\\ECG_DAT\\ecg-%d.txt",n++);       
-        //     fp = fopen(sfname,"wb+");//打开文件
-        // }
+    int n = 100;
+    FILE *fp = NULL;
+    char _sfname[100] = "", sfname[] = "F:\\ECG_DAT\\ECG_TO_MIT\\";
 
-        fprintf(fp,"%d,",val[i]);
-        if(i!=0&&i%slength==0){
-            if(fp!=NULL){
-                fprintf(fp,"\r\n");
-                fclose(fp);
-            }
-            fp=NULL;
-            char _sfname[100]="",sfname[]="d:\\ECG_DAT\\";
-            strcpy(_sfname,sfname);
-            sprintf(_sfname,"%secg-%d.txt",_sfname,n++);       
-            fp = fopen(_sfname,"wb+");//打开文件
-           
+    ofstream ouF;
+    ouF.open("F:\\ECG_DAT\\ECG_TO_MIT\\100.dat", std::ofstream::binary);
+    for (int i = 0, j = 1; i < length; i++, j++)
+    {
+        if(i>75044){
+            int iii=-1;
         }
-       
+        byte b1 = v1[i] & 0xff;
+        byte b2 = (v1[i] >> 4 & 0xf0) | (v2[i] >> 8 & 0x0f);
+        byte b3 = v2[i] & 0xff;
+
+        byte *wVAL = new byte[3];
+        wVAL[0] = b1;
+        wVAL[1] = b2;
+        wVAL[2] = b3;
+
+        ouF.write((char *)wVAL, 3*sizeof(char));
+        if (i != 0 && i % slength == 0)
+        {
+            n++;
+            ouF.close();
+            sprintf(_sfname, "%s%d.dat", sfname, n);
+            ouF.open(_sfname, std::ofstream::binary);
+        }
     }
-    if(fp!=NULL){
-        fprintf(fp,"\r\n");
+    ouF.close();
+    if (fp != NULL)
+    {
+        fprintf(fp, "\r\n");
         fclose(fp);
     }
-    
-
 
     cout << n << endl;
-
-    //for(int i=0;i<128;i++)
-    //  cout<<buffer[i]<<" ";
-
-    //v1 = (int *)malloc(length * sizeof(int));
-    //v2 = (int *)malloc(length * sizeof(int));
-    //v3 = (int *)malloc(length * sizeof(int));
-
-    // int *val = buildECD(buffer, length);
-
-    // for(int i=0;i<length;i++){
-    //     int v=val[i];
-    //     cout<<v<<endl;
-    //  }
 
     system("pause");
     return EXIT_SUCCESS;
 }
 
-int *buildECD(char *ecddata, int length)
+void buildECD(char *ecddata, int length)
 {
-    int *v2 = new int[length];
     int Ch1b[4] = {0, 0, 0, 0};
     int Ch2b[4] = {0, 0, 0, 0};
 
@@ -111,8 +95,6 @@ int *buildECD(char *ecddata, int length)
     int Ch2d[4] = {0, 0, 0, 0};
 
     int ecg_wk1, abs_wk16, abs_wk161, abs_wk162, fg0, mIndex = 0;
-
-    int **values = new int *[length];
 
     for (int j = 0; j < length; ++j)
     {
@@ -317,9 +299,7 @@ int *buildECD(char *ecddata, int length)
             E316[2] = Ch2d[0];
             E316[3] = E316[2] - E316[1] + 500;
         }
-
+        v1[j] = E316[1] > 1000 ? 1000 : E316[1];
         v2[j] = E316[2] > 1000 ? 1000 : E316[2];
     }
-    // out.close();
-    return v2;
 }

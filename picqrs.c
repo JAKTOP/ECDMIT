@@ -85,6 +85,8 @@ byte next_out = 0;
 #define WINDOW_WIDTH MS80
 #define FILTER_DELAY 21 + MS200
 
+FILE *fpf = NULL;
+
 /***********************************************
  Main function.
 ***********************************************/
@@ -133,6 +135,9 @@ main()
 	char atrName[20];
 	sprintf(atrName, "%d_t.txt", "T100");
 
+	fpf= fopen("F:\\MATLAB\\TEMP-MIT-BIH\\100_F.txt", "a");
+	
+
 	FILE *tAtrFile = fopen(atrName, "a");
 	fprintf(tAtrFile, "%s\t%s\t%s\n", "Position", "Time", "Type");
 	PICQRSDet(x, 1);
@@ -151,10 +156,10 @@ main()
 
 		++SampleCount;
 
-			lTemp = c - 1024;
-			lTemp *= 200;
-			lTemp /= 200;
-			c = lTemp;
+			// lTemp = c - 1024;
+			// lTemp *= 200;
+			// lTemp /= 200;
+			// c = lTemp;
 
 		delay = PICQRSDet(c, 0);
 
@@ -176,6 +181,7 @@ main()
 			fprintf(tAtrFile, "%ld\t%d\t%.3f\n", SampleCount, DetectionTime, rr);
 		}
 	}
+	fclose(fpf);
 	fclose(tAtrFile);
 	fclose(fp); //关闭文件
 	system("pause");
@@ -291,10 +297,11 @@ uint16_t PICQRSDet(uint16_t x, int init)
 
 	x = lpfilt(x, 0);
 	x = hpfilt(x, 0);
-	x = deriv1(x, 0);
+	//x = deriv1(x, 0);
 	if (x < 0)
 		x = -x;
-	x = mvwint(x, 0);
+	//x = mvwint(x, 0);
+	fprintf(fpf, "%d\n",x);
 	x = Peak(x, 0);
 
 	// Hold any peak that is detected for 200 ms
@@ -405,7 +412,6 @@ uint16_t PICQRSDet(uint16_t x, int init)
 			// Update RR Interval estimate and search back limit
 
 			UpdateRR(sbloc);
-			printf("%d\t%d\n", sbloc, det_thresh);
 			QrsDelay = count = count - sbloc;
 			QrsDelay += FILTER_DELAY;
 			sbpeak = 0;
@@ -547,10 +553,10 @@ uint16_t lpfilt(uint16_t datum, int init)
 
 uint16_t hpfilt(uint16_t datum, int init)
 {
-	static uint16_t y = 0;
-	static uint16_t data[HPBUFFER_LGTH];
+	static int16_t y = 0;
+	static int16_t data[HPBUFFER_LGTH];
 	static int ptr = 0;
-	uint16_t z;
+	int16_t z;
 	int halfPtr;
 
 	if (init)
