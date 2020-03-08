@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fstream>
+#include <iostream>
 
 // Serial input buffer
 byte buffer[64];
@@ -56,81 +58,92 @@ FILE *fp = NULL;
 FILE *fpf = NULL;
 static int ii = 1;
 
+int16_t *v1 = NULL, *v2 = NULL, *v3 = NULL;
+
 int main(void)
 {
+    fpf = fopen("F:\\MATLAB\\TEMP-MIT-BIH\\100_F.txt", "a");
+    FILE *fid;
+    fid = fopen("F:\\ECG_DAT\\265-11-HC+190500HK000008_20200225080925.ECD", "rb");
+    if (fid == NULL)
+    {
+        printf("读取文件出错");
+        return 0;
+    }
+    int mode = 2;
 
-  	int16_t c;
-	int16_t x;
+    fseek(fid, 0, SEEK_END);
+    long lSize = ftell(fid);
+    rewind(fid);
+    //开辟存储空间
+    int num = lSize / sizeof(char);
+    char *pos = (char *)malloc(sizeof(char) * num);
+    if (pos == NULL)
+    {
+        printf("开辟空间出错");
+        return 0;
+    }
+    fread(pos, sizeof(double), num, fid);
+    free(pos); //释放内存
 
-	FILE *fp = NULL;
-	char filename[] = "F:\\MATLAB\\TEMP-MIT-BIH\\100_200.txt"; //每行最大读取的字符数
-	if ((fp = fopen(filename, "r")) == NULL)				   //判断文件是否存在及可读
-	{
-		printf("error!");
-		return -1;
-	}
-	char StrLine[16];
-	int16_t lTemp = 0, delay = 0;
-	int16_t index = 0;
-	int _RRCount = 0;
-	int SampleCount = 0;
-	int mSampleCount = 0;
-	long DetectionTime;
+    v1 = (int16_t *)malloc(sizeof(int16_t) * num);
+    v2 = (int16_t *)malloc(sizeof(int16_t) * num);
+    buildECD(pos, lSize);
 
-	char atrName[20];
-	sprintf(atrName, "%d_t.txt", "T100");
+    int16_t c;
+    int16_t x;
 
-	fpf= fopen("F:\\MATLAB\\TEMP-MIT-BIH\\100_F.txt", "a");
-	
+    char StrLine[16];
+    int16_t lTemp = 0, delay = 0;
+    int16_t index = 0;
+    int _RRCount = 0;
+    int SampleCount = 0;
+    int mSampleCount = 0;
+    long DetectionTime;
 
-	FILE *tAtrFile = fopen(atrName, "a");
-	fprintf(tAtrFile, "%s\t%s\t\t%s\t\t%s\n", "Position", "Time", "RR","BPM");
-	PICQRSDet(x, 1);
-	while (!feof(fp))
-	{
+    FILE *tAtrFile = fopen("F:\\MATLAB\\TEMP-MIT-BIH\\RESULT.txt", "a");
+    fprintf(tAtrFile, "%s\t%s\t\t%s\t\t%s\n", "Position", "Time", "RR", "BPM");
+    PICQRSDet(x, 1);
 
-		int16_t c;
+    for (int i = 0; i < lSize; i++)
+    {
+        int16_t c;
 
-		fgets(StrLine, 1024, fp); //读取一行
-		c = atoi(StrLine);
+        c = v1[i];
+        ++SampleCount;
 
-		if (SampleCount == 1629)
-		{
-			int ii = 11;
-		}
+        // lTemp = c - 1024;
+        // lTemp *= 200;
+        // lTemp /= 200;
+        // c = lTemp;
 
-		++SampleCount;
+        delay = PICQRSDet(c, 0);
 
-			// lTemp = c - 1024;
-			// lTemp *= 200;
-			// lTemp /= 200;
-			// c = lTemp;
+        if (delay != 0)
+        {
 
-		delay = PICQRSDet(c, 0);
+            printf("V1:%d", _RRCount++);
+            DetectionTime = SampleCount - delay;
 
-		if (delay != 0)
-		{
+            // Convert sample count to input file sample
+            // rate.
 
-			printf("V1:%d", _RRCount++);
-			DetectionTime = SampleCount - delay;
+            DetectionTime *= 200;
+            DetectionTime /= 200;
 
-			// Convert sample count to input file sample
-			// rate.
+            double rr = (SampleCount - mSampleCount) / 200.0;
+            double bpm = 200 * 60 / (SampleCount - mSampleCount);
+            mSampleCount = SampleCount;
 
-			DetectionTime *= 200;
-			DetectionTime /= 200;
+            fprintf(tAtrFile, "%ld\t\t%d\t\t%.3f\t\t%.3f\n", SampleCount, DetectionTime, rr, bpm);
+        }
+    }
 
-			double rr = (SampleCount - mSampleCount) / 200.0;
-              double bpm=200*60/(SampleCount - mSampleCount);
-			mSampleCount = SampleCount;
-          
-			fprintf(tAtrFile, "%ld\t\t%d\t\t%.3f\t\t%.3f\n", SampleCount, DetectionTime, rr,bpm);
-		}
-	}
-	fclose(fpf);
-	fclose(tAtrFile);
-	fclose(fp); //关闭文件
-	system("pause");
+    fclose(fpf);
+    fclose(tAtrFile);
+
+    system("pause");
+    return 1;
 }
 
 // int NextSample(int *vout, int nosig, int ifreq,
@@ -314,7 +327,7 @@ int16_t PICQRSDet(int16_t x, int init)
     if (x < 0)
         x = -x;
     x = mvwint(x, 0);
-    	fprintf(fpf, "%d\n",x);
+    fprintf(fpf, "%d\n", x);
     x = Peak(x, 0);
 
     // Hold any peak that is detected for 200 ms
@@ -715,4 +728,228 @@ int16_t Peak(int16_t datum, int init)
     }
     lastDatum = datum;
     return pk;
+}
+
+/*************************************************
+ * 
+ * 解码
+ * 
+ * **********************************************/
+void buildECD(char *ecddata, int length)
+{
+    int Ch1b[4] = {0, 0, 0, 0};
+    int Ch2b[4] = {0, 0, 0, 0};
+
+    int Ch1d[4] = {0, 0, 0, 0};
+
+    int Ch2d[4] = {0, 0, 0, 0};
+
+    int ecg_wk1, abs_wk16, abs_wk161, abs_wk162, fg0, mIndex = 0;
+
+    for (int j = 0; j < length; ++j)
+    {
+        int *E316 = (int *)malloc(sizeof(int) * 4);
+        //************第一通道变换开始**********************************
+        int b2c4 = (int)(ecddata[j] & 0xff);
+        Ch1b[3] = (int)(b2c4 / 16);
+        Ch2b[3] = (int)(b2c4 & 0x0F);
+        ecg_wk1 = Ch1b[1] & 15;
+        fg0 = 0;
+        if (Ch1b[1] < 16)
+        { //需要计算
+            if (ecg_wk1 < 8)
+            { //f4
+                if (ecg_wk1 < 4)
+                { // f4+
+                    Ch1d[1] = Ch1d[0] + ecg_wk1;
+                }
+                else
+                { //f4-
+                    Ch1d[1] = Ch1d[0] - 8 + ecg_wk1;
+                }
+            }
+            else
+            {
+                if (ecg_wk1 < 0x0C)
+                { // f8
+                    abs_wk16 = Ch1b[1] & 1;
+                    abs_wk16 <<= 4;
+                    abs_wk161 = Ch1b[2] & 0x0F;
+                    abs_wk16 += abs_wk161; // 得到增量值
+                    if (ecg_wk1 > 0x09)
+                    {
+                        abs_wk16 = abs_wk16 - 32; //f8-
+                    }
+                    abs_wk161 = abs_wk16 / 2; // 得到1/2增量值
+                    Ch1d[2] = Ch1d[0] + abs_wk16;
+                    Ch1d[1] = Ch1d[0] + abs_wk161;
+                    Ch1b[2] += 16;
+                }
+                else
+                {                           //f12
+                    abs_wk16 = Ch1b[1] & 3; //Ch1b[1]高9,10位
+                    abs_wk16 <<= 8;
+                    abs_wk161 = Ch1b[2] & 0x0F;
+                    abs_wk161 <<= 4;
+                    abs_wk162 = abs_wk16 + abs_wk161 + Ch1b[3];
+                    if (abs_wk162 < 1001)
+                    { // 正常ECG 数据
+                        abs_wk16 = abs_wk162 - Ch1d[0];
+                        abs_wk161 = abs_wk16 / 3;
+                        Ch1d[1] = Ch1d[0] + abs_wk161;
+                        Ch1d[2] = Ch1d[1] + abs_wk161;
+                        Ch1d[3] = abs_wk162;
+
+                        Ch1b[2] += 16;
+                        Ch1b[3] += 16;
+                    }
+                    else
+                    {
+                        fg0 = abs_wk162;
+                        if ((abs_wk162 == 1001) || (abs_wk162 == 1002))
+                        {
+                            if ((Ch2b[1] == 0) && (Ch2b[2] == 0) && (Ch2b[3] == 0))
+                            {
+                                Ch1d[1] = abs_wk162;
+                            }
+                            else
+                            {
+                                Ch1d[1] = Ch1d[0];
+                            }
+                        }
+                        else if (abs_wk162 == 1010)
+                        {
+                            Ch1d[1] = abs_wk162;
+                        }
+                        else
+                        {
+                            Ch1d[1] = Ch1d[0];
+                        }
+                        Ch1d[2] = Ch1d[0];
+                        Ch1d[3] = Ch1d[0];
+                    }
+                    Ch1b[2] += 16;
+                    Ch1b[3] += 16;
+                }
+            }
+        }
+        //************第一通道变换结束***********************************
+
+        //************第二通道变换开始***********************************
+        ecg_wk1 = Ch2b[1] & 0x0F;
+        if (fg0 == 0)
+        { // 正常数据
+            if (Ch2b[1] < 16)
+            { //需要计算
+                if (ecg_wk1 < 8)
+                { //f4
+                    if (ecg_wk1 < 4)
+                    { // f4+
+                        Ch2d[1] = Ch2d[0] + ecg_wk1;
+                    }
+                    else
+                    { //f4-
+                        Ch2d[1] = Ch2d[0] - 8 + ecg_wk1;
+                    }
+                }
+                else
+                {
+                    if (ecg_wk1 < 0x0C)
+                    { // f8
+                        abs_wk16 = Ch2b[1] & 1;
+                        abs_wk16 <<= 4;
+                        abs_wk161 = Ch2b[2] & 0x0F;
+                        abs_wk16 += abs_wk161; // 得到增量值
+                        if (ecg_wk1 > 0x09)
+                        {
+                            abs_wk16 = abs_wk16 - 32; //f8-
+                        }
+                        abs_wk161 = abs_wk16 / 2; // 得到1/2增量值
+                        Ch2d[2] = Ch2d[0] + abs_wk16;
+                        Ch2d[1] = Ch2d[0] + abs_wk161;
+                        Ch2b[2] += 16;
+                    }
+                    else
+                    { //f12
+                        abs_wk16 = Ch2b[1] & 3;
+                        abs_wk16 <<= 8;
+                        abs_wk161 = Ch2b[2] & 0x0F;
+                        abs_wk161 <<= 4;
+                        abs_wk162 = abs_wk16 + abs_wk161 + Ch2b[3];
+                        Ch2d[3] = abs_wk162;
+                        abs_wk16 = abs_wk162 - Ch2d[0];
+                        abs_wk161 = abs_wk16 / 3;
+                        Ch2d[1] = Ch2d[0] + abs_wk161;
+                        Ch2d[2] = Ch2d[1] + abs_wk161;
+                        Ch2b[2] += 16;
+                        Ch2b[3] += 16;
+                    }
+                }
+            }
+        }
+        else
+        { // 特殊数据
+            if (fg0 != 1010)
+            {
+                Ch2d[1] = Ch2d[0];
+            }
+            else if ((Ch2b[1] & 3) == 0)
+            {
+                abs_wk161 = Ch2b[2] & 0x0F;
+                abs_wk161 <<= 4;
+                abs_wk162 = abs_wk161 + Ch2b[3];
+                Ch2d[1] = abs_wk162;
+            }
+            else
+                Ch2d[1] = Ch2d[0];
+            Ch2d[2] = Ch2d[0];
+            Ch2d[3] = Ch2d[0];
+            Ch2b[2] += 16;
+            Ch2b[3] += 16;
+        }
+        Ch1b[0] = Ch1b[1];
+        Ch1b[1] = Ch1b[2];
+        Ch1b[2] = Ch1b[3];
+
+        Ch1d[0] = Ch1d[1];
+        Ch1d[1] = Ch1d[2];
+        Ch1d[2] = Ch1d[3];
+
+        Ch2b[0] = Ch2b[1];
+        Ch2b[1] = Ch2b[2];
+        Ch2b[2] = Ch2b[3];
+
+        Ch2d[0] = Ch2d[1];
+        Ch2d[1] = Ch2d[2];
+        Ch2d[2] = Ch2d[3];
+
+        if (Ch1d[0] > 1000)
+        {
+            E316[0] = 0;
+            E316[1] = Ch1d[1];
+            E316[2] = Ch2d[1];
+            E316[3] = E316[2] - E316[1] + 500;
+            if (Ch1d[0] < 1003)
+            {
+                E316[0] = Ch1d[0];
+            }
+            else
+            {
+                if (Ch1d[0] == 1010)
+                {
+                    E316[4] = ((Ch2d[0] - 139) * 100 / 31);
+                }
+            }
+        }
+        else
+        {
+
+            E316[0] = 0;
+            E316[1] = Ch1d[0];
+            E316[2] = Ch2d[0];
+            E316[3] = E316[2] - E316[1] + 500;
+        }
+        v1[j] = E316[1] > 1000 ? 1000 : E316[1];
+        v2[j] = E316[2] > 1000 ? 1000 : E316[2];
+    }
 }

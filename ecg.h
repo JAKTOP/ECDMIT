@@ -14,4 +14,4 @@ int16_t Peak(int16_t datum, int init);
 void UpdateQ(int16_t newQ);
 void UpdateRR(int16_t newRR);
 void UpdateN(int16_t newN);
-
+void buildECD(char *ecddata, int length);
