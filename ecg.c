@@ -59,7 +59,8 @@ FILE *fpf = NULL;
 static int ii = 1;
 
 int16_t *v1 = NULL, *v2 = NULL, *v3 = NULL;
-
+int index0 = 0;
+int index1 = 0;
 int main(void)
 {
     fpf = fopen("F:\\MATLAB\\TEMP-MIT-BIH\\100_F.txt", "a");
@@ -104,38 +105,36 @@ int main(void)
     FILE *tAtrFile = fopen("F:\\MATLAB\\TEMP-MIT-BIH\\RESULT.txt", "a");
     fprintf(tAtrFile, "%s\t%s\t\t%s\t\t%s\n", "Position", "Time", "RR", "BPM");
     PICQRSDet(x, 1);
+    NextSample(x, 2, 360, 200, 1);
 
     for (int i = 0; i < lSize; i++)
     {
-        int16_t c;
 
-        c = v1[i];
-        ++SampleCount;
-
-        // lTemp = c - 1024;
-        // lTemp *= 200;
-        // lTemp /= 200;
-        // c = lTemp;
-
-        delay = PICQRSDet(c, 0);
-
-        if (delay != 0)
+        if (NextSample(x, 2, 360, 200, 0) != 0)
         {
+            c = v1[i];
+            ++SampleCount;
 
-            printf("V1:%d", _RRCount++);
-            DetectionTime = SampleCount - delay;
+            delay = PICQRSDet(c, 0);
 
-            // Convert sample count to input file sample
-            // rate.
+            if (delay != 0)
+            {
 
-            DetectionTime *= 200;
-            DetectionTime /= 200;
+                printf("V1:%d", _RRCount++);
+                DetectionTime = SampleCount - delay;
 
-            double rr = (SampleCount - mSampleCount) / 200.0;
-            double bpm = 200 * 60 / (SampleCount - mSampleCount);
-            mSampleCount = SampleCount;
+                // Convert sample count to input file sample
+                // rate.
 
-            fprintf(tAtrFile, "%ld\t\t%d\t\t%.3f\t\t%.3f\n", SampleCount, DetectionTime, rr, bpm);
+                DetectionTime *= 200;
+                DetectionTime /= 200;
+
+                double rr = (SampleCount - mSampleCount) / 200.0;
+                double bpm = 200 * 60 / (SampleCount - mSampleCount);
+                mSampleCount = SampleCount;
+
+                fprintf(tAtrFile, "%ld\t\t%d\t\t%.3f\t\t%.3f\n", SampleCount, DetectionTime, rr, bpm);
+            }
         }
     }
 
@@ -146,45 +145,46 @@ int main(void)
     return 1;
 }
 
-// int NextSample(int *vout, int nosig, int ifreq,
-// 			   int ofreq, int init)
-// {
-// 	int i;
-// 	static int m, n, mn, ot, it, vv[32], v[32], rval;
+int NextSample(int *vout, int nosig, int ifreq,
+               int ofreq, int init)
+{
+    int i;
+    static int m, n, mn, ot, it, vv[32], v[32], rval;
 
-// 	if (init)
-// 	{
-// 		i = gcd(ifreq, ofreq);
-// 		m = ifreq / i;
-// 		n = ofreq / i;
-// 		mn = m * n;
-// 		ot = it = 0;
-// 		getvec(vv);
-// 		rval = getvec(v);
+    if (init)
+    {
+        i = gcd(ifreq, ofreq);
+        m = ifreq / i;
+        n = ofreq / i;
+        mn = m * n;
+        ot = it = 0;
+        vv[0] = v1[index0++];
 
-// 	}
+        rval = v[0] = v2[index1++];
+        ;
+    }
 
-// 	else
-// 	{
-// 		while (ot > it)
-// 		{
-// 			for (i = 0; i < nosig; ++i)
-// 				vv[i] = v[i];
-// 			rval = getvec(v);
-// 			if (it > mn)
-// 			{
-// 				it -= mn;
-// 				ot -= mn;
-// 			}
-// 			it += n;
-// 		}
-// 		for (i = 0; i < nosig; ++i)
-// 			vout[i] = vv[i] + (ot % n) * (v[i] - vv[i]) / n;
-// 		ot += m;
-// 	}
+    else
+    {
+        while (ot > it)
+        {
+            for (i = 0; i < nosig; ++i)
+                vv[i] = v[i];
+            rval =v2[index1++];
+            if (it > mn)
+            {
+                it -= mn;
+                ot -= mn;
+            }
+            it += n;
+        }
+        for (i = 0; i < nosig; ++i)
+            vout[i] = vv[i] + (ot % n) * (v[i] - vv[i]) / n;
+        ot += m;
+    }
 
-// 	return (rval);
-// }
+    return (rval);
+}
 
 // Greatest common divisor of x and y (Euclid's algorithm)
 

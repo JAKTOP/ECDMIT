@@ -15,3 +15,6 @@ void UpdateQ(int16_t newQ);
 void UpdateRR(int16_t newRR);
 void UpdateN(int16_t newN);
 void buildECD(char *ecddata, int length);
+int NextSample(int *vout, int nosig, int ifreq,
+			   int ofreq, int init);
+int gcd(int x, int y);
